@@ -13,11 +13,12 @@ namespace TowerOfEternity.Network.Snapshots
         public float x;
         public float y;
         public string state;
+        public long ackSequence; // Số thứ tự input cuối cùng Server đã xử lý của Player này
     }
 
     /// <summary>
     /// [Network/Snapshots] Bức ảnh toàn cảnh thế giới tại một Tick (World Snapshot).
-    /// Client nhận dữ liệu này từ Server để đồng bộ và nội suy (Interpolation).
+    /// Client nhận dữ liệu này từ Server để đồng bộ và hòa giải (Reconciliation).
     /// </summary>
     [Serializable]
     public class WorldSnapshot

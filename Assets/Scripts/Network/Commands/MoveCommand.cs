@@ -12,14 +12,16 @@ namespace TowerOfEternity.Network.Commands
     public class MoveCommand
     {
         public string type = "MOVE_CMD";
+        public long sequenceNumber; // Số thứ tự gói tin để đối chiếu ACK từ Server
         public float dirX;
         public float dirY;
         public bool isSprint;
         public bool isDash;
         public long clientTime;
 
-        public MoveCommand(Vector2 dir, bool sprint, bool dash)
+        public MoveCommand(long seq, Vector2 dir, bool sprint, bool dash)
         {
+            this.sequenceNumber = seq;
             this.dirX = dir.x;
             this.dirY = dir.y;
             this.isSprint = sprint;
