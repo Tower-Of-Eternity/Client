@@ -11,9 +11,9 @@ namespace TowerOfEternity.Network.Sync
 {
     /// <summary>
     /// [Network/Sync] Điều phối đồng bộ mạng cho người chơi:
-    /// 1. Gửi lệnh Intent (MoveCommand) kèm Sequence Number lên Server với tần số 20Hz (50ms).
+    /// 1. Gửi lệnh Intent (MoveCommand, DashCommand) kèm Sequence Number lên Server với tần số 20Hz (50ms).
     /// 2. Lưu trữ hàng đợi unacknowledgedInputs phục vụ Client Prediction.
-    /// 3. Nhận WorldSnapshot và thực hiện Server Reconciliation khi phát hiện sai lệch.
+    /// 3. Nhận WorldSnapshot và thực hiện Server Reconciliation REPLAY khi phát hiện sai lệch.
     /// </summary>
     [RequireComponent(typeof(IInputReader))]
     [RequireComponent(typeof(PlayerMotor))]
@@ -40,6 +40,22 @@ namespace TowerOfEternity.Network.Sync
         {
             inputReader = GetComponent<IInputReader>();
             motor = GetComponent<PlayerMotor>();
+        }
+
+        private void OnEnable()
+        {
+            if (inputReader != null)
+            {
+                inputReader.OnDashTriggered += SendDashCommand;
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (inputReader != null)
+            {
+                inputReader.OnDashTriggered -= SendDashCommand;
+            }
         }
 
         private void Start()
@@ -83,7 +99,7 @@ namespace TowerOfEternity.Network.Sync
                     sequenceNumber,
                     currentDir,
                     inputReader.IsSprintHeld,
-                    false // Dash được kích hoạt riêng nếu có
+                    false
                 );
 
                 // Lưu lại input vào hàng đợi Client Prediction
@@ -92,6 +108,24 @@ namespace TowerOfEternity.Network.Sync
                 _ = NetworkManager.Instance.SendMessageAsync(cmd.ToJson());
                 lastSentDir = currentDir;
             }
+        }
+
+        private void SendDashCommand()
+        {
+            if (NetworkManager.Instance == null || !NetworkManager.Instance.IsConnected) return;
+
+            sequenceNumber++;
+
+            MoveCommand dashCmd = new MoveCommand(
+                sequenceNumber,
+                inputReader.MoveDirection,
+                false,
+                true // isDash = true! Đã kết nối Dash từ Client lên Server!
+            );
+
+            unacknowledgedInputs.Enqueue(dashCmd);
+            _ = NetworkManager.Instance.SendMessageAsync(dashCmd.ToJson());
+            Debug.Log($"<color=cyan>[NetworkSync] Đã gửi lệnh DASH (Seq #{sequenceNumber}) lên Server!</color>");
         }
 
         private void HandleServerMessage(string rawJson)
@@ -129,16 +163,34 @@ namespace TowerOfEternity.Network.Sync
                                 unacknowledgedInputs.Dequeue();
                             }
 
-                            // 2.2. Server Reconciliation: So sánh vị trí dự đoán với vị trí thật của Server
+                            // 2.2. Kiểm tra độ lệch giữa vị trí Client hiện tại và vị trí Server chốt
                             Vector2 serverPos = new Vector2(p.x, p.y);
                             Vector2 localPos = new Vector2(motor.GroundPosition.x, motor.GroundPosition.y);
                             float errorDistance = Vector2.Distance(localPos, serverPos);
 
                             if (errorDistance > reconciliationThreshold)
                             {
-                                // Phát hiện lệch vị trí -> Hòa giải kéo về vị trí Server chỉ định
-                                motor.SetPositionFromServer(new Vector3(serverPos.x, serverPos.y, motor.GroundPosition.z));
-                                Debug.LogWarning($"<color=orange>[Reconciliation] Lệch {errorDistance:F2}m! Hòa giải về vị trí Server: ({serverPos.x:F2}, {serverPos.y:F2}) [ACK #{p.ackSequence}]</color>");
+                                // 2.3. FULL SERVER RECONCILIATION WITH REPLAY:
+                                // Bước A: Reset về vị trí Server chỉ định
+                                Vector3 replayedPos = new Vector3(serverPos.x, serverPos.y, motor.GroundPosition.z);
+
+                                // Bước B: Tua nhanh (Replay) lại toàn bộ các input chưa được ACK trong hàng đợi
+                                foreach (var unackedCmd in unacknowledgedInputs)
+                                {
+                                    Vector2 dir = new Vector2(unackedCmd.dirX, unackedCmd.dirY);
+                                    if (dir != Vector2.zero)
+                                    {
+                                        dir = dir.normalized;
+                                        float speed = unackedCmd.isDash 
+                                            ? 18f 
+                                            : (unackedCmd.isSprint ? 8.5f : 5.0f);
+                                        replayedPos += (Vector3)(dir * speed * sendInterval);
+                                    }
+                                }
+
+                                // Bước C: Áp dụng vị trí sau khi đã replay mượt mà
+                                motor.SetPositionFromServer(replayedPos);
+                                Debug.LogWarning($"<color=orange>[Reconciliation] Lệch {errorDistance:F2}m! Đã hòa giải và Replay {unacknowledgedInputs.Count} inputs về: ({replayedPos.x:F2}, {replayedPos.y:F2}) [ACK #{p.ackSequence}]</color>");
                             }
                             break;
                         }
