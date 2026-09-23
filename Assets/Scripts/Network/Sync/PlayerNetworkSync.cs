@@ -179,6 +179,13 @@ namespace TowerOfEternity.Network.Sync
                                 float replayDashTimer = 0f;
                                 Vector2 replayDashDir = Vector2.zero;
 
+                                // Nếu Snapshot từ Server ghi nhận nhân vật đang trong trạng thái DASH
+                                if (p.state == "DASH")
+                                {
+                                    replayDashTimer = 0.15f; // Tiếp tục thời lượng lướt còn lại
+                                    replayDashDir = (inputReader.MoveDirection != Vector2.zero) ? inputReader.MoveDirection.normalized : Vector2.right;
+                                }
+
                                 foreach (var unackedCmd in unacknowledgedInputs)
                                 {
                                     // 1. Kích hoạt Dash nếu gặp lệnh Dash mới và không đang trong thời gian lướt cũ
