@@ -175,16 +175,37 @@ namespace TowerOfEternity.Network.Sync
                                 Vector3 replayedPos = new Vector3(serverPos.x, serverPos.y, motor.GroundPosition.z);
 
                                 // Bước B: Tua nhanh (Replay) lại toàn bộ các input chưa được ACK trong hàng đợi
+                                // Đảm bảo đồng nhất 100% với mô hình mô phỏng của Server (0.2s Dash, khóa hướng)
+                                float replayDashTimer = 0f;
+                                Vector2 replayDashDir = Vector2.zero;
+
                                 foreach (var unackedCmd in unacknowledgedInputs)
                                 {
-                                    Vector2 dir = new Vector2(unackedCmd.dirX, unackedCmd.dirY);
-                                    if (dir != Vector2.zero)
+                                    // 1. Kích hoạt Dash nếu gặp lệnh Dash mới và không đang trong thời gian lướt cũ
+                                    if (unackedCmd.isDash && replayDashTimer <= 0f)
                                     {
-                                        dir = dir.normalized;
-                                        float speed = unackedCmd.isDash 
-                                            ? 18f 
-                                            : (unackedCmd.isSprint ? 8.5f : 5.0f);
-                                        replayedPos += (Vector3)(dir * speed * sendInterval);
+                                        replayDashTimer = 0.2f; // DASH_DURATION = 0.2s chuẩn Server
+                                        replayDashDir = new Vector2(unackedCmd.dirX, unackedCmd.dirY);
+                                        if (replayDashDir == Vector2.zero) replayDashDir = Vector2.right;
+                                        replayDashDir = replayDashDir.normalized;
+                                    }
+
+                                    // 2. Nếu đang trong thời gian lướt: Bay cố định theo hướng đã khóa với tốc độ 18m/s
+                                    if (replayDashTimer > 0f)
+                                    {
+                                        replayedPos += (Vector3)(replayDashDir * 18f * sendInterval);
+                                        replayDashTimer -= sendInterval;
+                                    }
+                                    else
+                                    {
+                                        // 3. Di chuyển thông thường
+                                        Vector2 dir = new Vector2(unackedCmd.dirX, unackedCmd.dirY);
+                                        if (dir != Vector2.zero)
+                                        {
+                                            dir = dir.normalized;
+                                            float speed = unackedCmd.isSprint ? 8.5f : 5.0f;
+                                            replayedPos += (Vector3)(dir * speed * sendInterval);
+                                        }
                                     }
                                 }
 
