@@ -29,6 +29,7 @@ namespace TowerOfEternity.Input
             if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed) rawInput.y -= 1f;
 
             MoveDirection = rawInput.normalized;
+            //normalized để đảm bảo vector MoveDirection luôn có độ dài 1 khi di chuyển chéo, tránh việc di chuyển nhanh hơn khi nhấn hai phím cùng lúc.
 
             // 2. Phím Shift giữ: Chạy nhanh (Sprint)
             IsSprintHeld = keyboard.shiftKey.isPressed;
@@ -44,6 +45,8 @@ namespace TowerOfEternity.Input
             {
                 OnDashTriggered?.Invoke();
             }
+
+
         }
     }
 }

@@ -14,6 +14,9 @@ namespace TowerOfEternity.Network.Snapshots
         public float y;
         public string state;
         public long ackSequence; // Số thứ tự input cuối cùng Server đã xử lý của Player này
+        public float dashTimeRemaining;
+        public float dashDirX;
+        public float dashDirY;
     }
 
     /// <summary>

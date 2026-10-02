@@ -182,8 +182,9 @@ namespace TowerOfEternity.Network.Sync
                                 // Nếu Snapshot từ Server ghi nhận nhân vật đang trong trạng thái DASH
                                 if (p.state == "DASH")
                                 {
-                                    replayDashTimer = 0.15f; // Tiếp tục thời lượng lướt còn lại
-                                    replayDashDir = (inputReader.MoveDirection != Vector2.zero) ? inputReader.MoveDirection.normalized : Vector2.right;
+                                    // Nhận dữ liệu thẩm quyền 100% từ Server: không đoán mò thời gian hay hướng lướt!
+                                    replayDashTimer = p.dashTimeRemaining;
+                                    replayDashDir = new Vector2(p.dashDirX, p.dashDirY);
                                 }
 
                                 foreach (var unackedCmd in unacknowledgedInputs)
@@ -192,9 +193,8 @@ namespace TowerOfEternity.Network.Sync
                                     if (unackedCmd.isDash && replayDashTimer <= 0f)
                                     {
                                         replayDashTimer = 0.2f; // DASH_DURATION = 0.2s chuẩn Server
-                                        replayDashDir = new Vector2(unackedCmd.dirX, unackedCmd.dirY);
-                                        if (replayDashDir == Vector2.zero) replayDashDir = Vector2.right;
-                                        replayDashDir = replayDashDir.normalized;
+                                        Vector2 inputDir = new Vector2(unackedCmd.dirX, unackedCmd.dirY);
+                                        replayDashDir = (inputDir != Vector2.zero) ? inputDir.normalized : Vector2.zero;
                                     }
 
                                     // 2. Nếu đang trong thời gian lướt: Bay cố định theo hướng đã khóa với tốc độ 18m/s
